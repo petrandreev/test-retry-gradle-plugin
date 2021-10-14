@@ -44,4 +44,28 @@ class KotlinDslFuncTest extends AbstractPluginFuncTest {
         where:
         gradleVersion << GRADLE_VERSIONS_UNDER_TEST
     }
+
+    def "kotlin extension configuration on settings (gradle version #gradleVersion)"() {
+        given:
+        buildFile.delete()
+        buildFile = testProjectDir.newFile('build.gradle.kts')
+        buildFile.text = """
+            plugins {
+                java
+                id("org.gradle.test-retry")
+            }
+
+            tasks.test {
+                retry {
+                    maxRetries.set(2)
+                }
+            }
+        """
+
+        expect:
+        gradleRunner(gradleVersion).build()
+
+        where:
+        gradleVersion << GRADLE_VERSIONS_UNDER_TEST
+    }
 }

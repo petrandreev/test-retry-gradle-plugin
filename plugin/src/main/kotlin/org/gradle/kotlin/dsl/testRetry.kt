@@ -17,6 +17,8 @@
 
 package org.gradle.kotlin.dsl
 
+import org.gradle.api.initialization.Settings
+import org.gradle.api.plugins.ExtensionAware
 import org.gradle.api.tasks.testing.Test
 import org.gradle.testretry.TestRetryTaskExtension
 
@@ -25,3 +27,7 @@ val Test.retry: TestRetryTaskExtension
 
 fun Test.retry(configure: TestRetryTaskExtension.() -> Unit) =
     extensions.configure(TestRetryTaskExtension.NAME, configure)
+
+@Suppress("unused")
+fun Settings.retry(configure: TestRetryTaskExtension.() -> Unit) =
+    (this as ExtensionAware).extensions.configure(TestRetryTaskExtension.NAME, configure)

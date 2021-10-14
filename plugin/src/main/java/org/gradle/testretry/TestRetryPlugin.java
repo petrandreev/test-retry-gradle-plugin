@@ -18,15 +18,18 @@ package org.gradle.testretry;
 
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
+import org.gradle.api.initialization.Settings;
 import org.gradle.api.model.ObjectFactory;
 import org.gradle.api.provider.ProviderFactory;
 import org.gradle.api.tasks.testing.Test;
+import org.gradle.testretry.internal.config.DefaultTestRetryTaskExtension;
+import org.jetbrains.annotations.NotNull;
 
 import javax.inject.Inject;
 
 import static org.gradle.testretry.internal.config.TestTaskConfigurer.configureTestTask;
 
-public class TestRetryPlugin implements Plugin<Project> {
+public class TestRetryPlugin implements Plugin<Object> {
 
     private final ObjectFactory objectFactory;
     private final ProviderFactory providerFactory;
@@ -38,14 +41,40 @@ public class TestRetryPlugin implements Plugin<Project> {
     }
 
     @Override
-    public void apply(Project project) {
-        if (pluginAlreadyApplied(project)) {
-            return;
+    public void apply(@NotNull Object target) {
+        if (target instanceof Settings) {
+            applySettingsPlugin((Settings) target);
+        } else if (target instanceof Project) {
+            Project project = (Project) target;
+            if (pluginAlreadyApplied(project)) {
+                return;
+            }
+            project.getTasks()
+                .withType(Test.class)
+                .configureEach(task -> configureTestTask(task, objectFactory, providerFactory));
         }
+    }
 
-        project.getTasks()
-            .withType(Test.class)
-            .configureEach(task -> configureTestTask(task, objectFactory, providerFactory));
+    private void applySettingsPlugin(Settings settings) {
+        TestRetryTaskExtension testRetryTaskExtension = objectFactory.newInstance(DefaultTestRetryTaskExtension.class);
+        settings.getExtensions().add(TestRetryTaskExtension.class, TestRetryTaskExtension.NAME, testRetryTaskExtension);
+        settings.getGradle().beforeProject(project -> {
+            project.getPluginManager().apply("org.gradle.test-retry");
+            project.getTasks().withType(Test.class).configureEach(test -> {
+                TestRetryTaskExtension retryExtension = test.getExtensions().getByType(TestRetryTaskExtension.class);
+                retryExtension.getMaxRetries().convention(testRetryTaskExtension.getMaxRetries());
+                retryExtension.getMaxFailures().convention(testRetryTaskExtension.getMaxFailures());
+                retryExtension.getFailOnPassedAfterRetry().convention(testRetryTaskExtension.getFailOnPassedAfterRetry());
+                retryExtension.getFilter().getExcludeAnnotationClasses()
+                    .convention(testRetryTaskExtension.getFilter().getExcludeAnnotationClasses());
+                retryExtension.getFilter().getIncludeAnnotationClasses()
+                    .convention(testRetryTaskExtension.getFilter().getIncludeAnnotationClasses());
+                retryExtension.getFilter().getExcludeClasses()
+                    .convention(testRetryTaskExtension.getFilter().getExcludeClasses());
+                retryExtension.getFilter().getIncludeClasses()
+                    .convention(testRetryTaskExtension.getFilter().getIncludeClasses());
+            });
+        });
     }
 
     private static boolean pluginAlreadyApplied(Project project) {
